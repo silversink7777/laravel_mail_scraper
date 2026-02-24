@@ -12,6 +12,7 @@ use Symfony\Component\DomCrawler\Crawler;
  */
 class ReleaseScraper
 {
+    /** TDnet 適時開示 ベースURL */
     private const BASE_URL = 'https://www.release.tdnet.info/inbs/';
 
     public function scrape(array $config): array

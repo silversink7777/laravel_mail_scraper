@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Mail\ScrapeNotificationMail;
 use App\Services\JpxScraper;
 use App\Services\ReleaseScraper;
+use App\Services\TdnetSearchScraper;
+use App\Services\YahooWeatherScraper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -13,12 +15,21 @@ class ScrapeAndNotifyCommand extends Command
 {
     protected $signature = 'scrape:notify';
 
-    protected $description = 'TDnet・JPX をスクレイプし、マッチ時にメール送信';
+    protected $description = 'TDnet（一覧・検索）・JPX・Yahoo天気をスクレイプし、マッチ時にメール送信';
 
-    public function handle(ReleaseScraper $releaseScraper, JpxScraper $jpxScraper): int
-    {
+    public function handle(
+        ReleaseScraper $releaseScraper,
+        TdnetSearchScraper $tdnetSearchScraper,
+        JpxScraper $jpxScraper,
+        YahooWeatherScraper $yahooWeatherScraper
+    ): int {
         $configs = config('scrape');
-        $sources = ['release' => $releaseScraper, 'jpx' => $jpxScraper];
+        $sources = [
+            'release' => $releaseScraper,
+            'tdnet_search' => $tdnetSearchScraper,
+            'jpx' => $jpxScraper,
+            'yahoo_weather' => $yahooWeatherScraper,
+        ];
 
         $matched = [];
 
@@ -70,11 +81,7 @@ class ScrapeAndNotifyCommand extends Command
             return self::SUCCESS;
         }
 
-        $firstTo = array_shift($to);
-        $recipients = Mail::to($firstTo);
-        foreach ($to as $address) {
-            $recipients->cc($address);
-        }
+        $recipients = Mail::to($to);
         foreach ($cc as $address) {
             $recipients->cc($address);
         }

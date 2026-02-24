@@ -16,7 +16,7 @@
 【会社名】<br>{{ $post['company_name'] }}<br>
 @endif
 【タイトル】<br>「{{ $post['text'] }}」<br>
-【URL】<br>{{ $post['href'] }}<br>
+【URL】<br><a href="{{ $post['href'] }}">{{ $post['href'] }}</a><br>
 @endforeach
 - - - - - - - - - - - -<br>
 @endforeach
