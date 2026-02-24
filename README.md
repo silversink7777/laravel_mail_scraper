@@ -1,59 +1,101 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Laravel Mail Scraper
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+複数サイトをスクレイピングして、**キーワードにマッチしたらメール通知**する Laravel アプリです。  
+重複通知を避けるため、最新取得位置を DB（`scrape_histories`）に保存します。
 
-## About Laravel
+## できること
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **TDnet 適時開示（当日分の一覧）**: `release`
+- **TDnet トップページ（一覧）**: `tdnet_search`（アクセス拒否対策として User-Agent を付与）
+- **JPX 上場廃止・整理等**: `jpx`
+- **Yahoo天気（渋谷）**: `yahoo_weather`（前回もマッチ済みなら再送しない）
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+実行コマンドは `php artisan scrape:notify` です。
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## 必要要件
 
-## Learning Laravel
+- PHP 8.2+
+- Composer
+- DB（SQLite でも OK）
+- メール送信設定（SMTP 等）
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## セットアップ（最小）
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. 依存導入
 
-## Laravel Sponsors
+```bash
+composer install
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+2. `.env` 作成（未作成なら）
 
-### Premium Partners
+```bash
+copy .env.example .env
+php artisan key:generate
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+3. DB 設定 → マイグレーション
 
-## Contributing
+```bash
+php artisan migrate
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+4. 通知先を設定（どちらか）
 
-## Code of Conduct
+- `.env` に設定（推奨）
+  - `SCRAPE_MAIL_TO=to1@example.com,to2@example.com`
+  - `SCRAPE_MAIL_CC=cc1@example.com`
+- または `config/scrape.php` の `mail_to`, `mail_cc`
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+5. メール送信設定（例: SMTP）
 
-## Security Vulnerabilities
+`.env` の `MAIL_*` を設定してください（Laravel 標準のメール設定です）。
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## 使い方
 
-## License
+### 手動実行
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+php artisan scrape:notify
+```
+
+- **マッチなし**: 何も送信せず終了します
+- **送信先未設定**: ログに警告を出して送信せず終了します
+
+### 定期実行（スケジューラ）
+
+`routes/console.php` で `scrape:notify` が **30分ごと**に登録されています。
+
+- サーバーで動かす場合: cron で `schedule:run` を 1 分ごとに回すのが一般的です
+
+```bash
+* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1
+```
+
+（ローカル検証なら `php artisan schedule:work` でも動きます）
+
+## スクレイプ条件の設定
+
+`config/scrape.php` を編集します。
+
+- **release**
+  - `sendtime`: `['HH:MM', 'HH:MM']`（当日分のみ、時間帯で絞り込み）
+  - `keyword`: `[['含めたい語', '除外語1', '除外語2'], ...]`
+    - 先頭が「含めたい語」、2つ目以降が「除外語」です（`-` は付いていてもいなくても動作します）
+- **tdnet_search**
+  - `keyword`: `['検索語1', '検索語2']`（空なら全件扱い）
+- **jpx**
+  - 追加設定なし（ページ先頭の新着から差分検知）
+- **yahoo_weather**
+  - `keyword`: `['語1', '語2']`（**すべて含まれる**ときだけマッチ）
+
+## 通知メール
+
+- メール本文: `resources/views/emails/scrape-notification.blade.php`
+- 件名: 最初にマッチした記事タイトル（なければ `スクレイプ通知`）
+
+## ログ / トラブルシュート
+
+- **ログ**: `storage/logs/laravel.log`
+- **サイト構造変更**でマッチしない場合があります（HTML構造が変わると抽出条件が外れます）
+- **TDnet に弾かれる**場合があります（`tdnet_search` は拒否時の status/body をログに残します）
